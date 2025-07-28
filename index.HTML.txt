@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Inventory Ordering System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { margin: 5px 0; padding: 10px; width: 100%; font-size: 16px; }
+    .section { margin-top: 20px; }
+    #searchBar { padding: 10px; width: 100%; font-size: 16px; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+    th, td { border: 1px solid #888; padding: 8px; text-align: center; }
+    #downloadBtn { margin-top: 20px; padding: 10px 20px; font-size: 18px; }
+  </style>
+</head>
+<body>
+
+<h1>Inventory Ordering System</h1>
+
+<button onclick="showHome()">🏠 Home</button>
+<button onclick="showReportLow()">🚨 Report a Low Item</button>
+<button onclick="showStart()">📦 Start Inventory</button>
+
+<input type="search" id="searchBar" placeholder="🔍 Search item…" oninput="runSearch()" style="display:none" />
+
+<div id="mainArea"></div>
+
+<h2>Inventory Summary</h2>
+<table id="summaryTable">
+  <thead><tr><th>Section</th><th>Shelf</th><th>Row</th><th>Item</th><th>On Hand</th><th>Par</th><th>Order</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2>Low Item Reports</h2>
+<table id="lowTable">
+  <thead><tr><th>Item</th><th>Section</th><th>Notes</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<button id="downloadBtn" onclick="downloadExcel()">Download Excel</button>
+
+<script>
+  const data = [
+    { section:"Garage", shelf:"A", row:"1", item:"Oxygen Tank" },
+    // ... add your own items here ...
+  ];
+
+  let parMemory = {};
+  const summaryBody = document.querySelector("#summaryTable tbody");
+  const lowBody = document.querySelector("#lowTable tbody");
+  const mainArea = document.getElementById("mainArea");
+  const searchBar = document.getElementById("searchBar");
+
+  function showHome(){ mainArea.innerHTML="<h2>Welcome</h2><p>Use buttons above to start.</p>"; searchBar.style.display="none";}
+  function showReportLow(){
+    searchBar.style.display="none";
+    mainArea.innerHTML=`
+      <h2>Report Low Item</h2>
+      <input id="reportItem" placeholder="Item name" /><br/>
+      <select id="reportSection">${[...new Set(data.map(d=>d.section))].map(s=>`<option>${s}</option>`).join('')}</select><br/>
+      <textarea id="reportNotes" placeholder="Notes (optional)"></textarea><br/>
+      <button onclick="addLow()">Submit</button>`;
+  }
+  function addLow(){
+    const item=document.getElementById("reportItem").value;
+    const section=document.getElementById("reportSection").value;
+    const notes=document.getElementById("reportNotes").value;
+    const row=document.createElement("tr");
+    row.innerHTML=`<td>${item}</td><td>${section}</td><td>${notes}</td>`;
+    lowBody.appendChild(row);
+    alert("Reported");
+    showHome();
+  }
+  function showStart(){
+    searchBar.style.display="block";
+    mainArea.innerHTML="";
+    [...new Set(data.map(d=>d.section))].forEach(sec=>{
+      const div=document.createElement("div");
+      div.className="section";
+      div.innerHTML=`<h3>${sec}</h3>`;
+      data.filter(d=>d.section===sec).forEach(d=>{
+        const btn=document.createElement("button");
+        btn.textContent=`${d.shelf}-${d.row} ${d.item}`;
+        btn.onclick=()=>orderItem(d);
+        div.appendChild(btn);
+      });
+      mainArea.appendChild(div);
+    });
+  }
+  function orderItem(d){
+    const onHand=prompt(`On hand for ${d.item}?`); if(onHand===null)return;
+    if(!parMemory[d.item]){
+      const par=prompt(`Par level for ${d.item}?`); if(par===null)return;
+      parMemory[d.item]=parseInt(par);
+    }
+    const par=parMemory[d.item];
+    const order=Math.max(0,par-parseInt(onHand));
+    const row=document.createElement("tr");
+    row.innerHTML=`<td>${d.section}</td><td>${d.shelf}</td><td>${d.row}</td><td>${d.item}</td><td>${onHand}</td><td>${par}</td><td>${order}</td>`;
+    summaryBody.appendChild(row);
+  }
+  function runSearch(){
+    const q=searchBar.value.toLowerCase();
+    if(!q)return;
+    const found=data.find(d=>d.item.toLowerCase().includes(q));
+    if(found){ orderItem(found); searchBar.value=""; }
+  }
+  function downloadExcel(){
+    const wb=XLSX.utils.book_new(),
+      inv=[["Section","Shelf","Row","Item","On Hand","Par","Order"]],
+      low=[["Item","Section","Notes"]];
+    summaryBody.querySelectorAll("tr").forEach(r=>inv.push([...r.children].map(td=>td.innerText)));
+    lowBody.querySelectorAll("tr").forEach(r=>low.push([...r.children].map(td=>td.innerText)));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(inv),"Inventory Orders");
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(low),"Low Reports");
+    XLSX.writeFile(wb,"Inventory_Report.xlsx");
+  }
+  showHome();
+</script>
+</body>
+</html>
